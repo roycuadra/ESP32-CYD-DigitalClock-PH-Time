@@ -335,6 +335,7 @@ void DrawDate(time_t utc)
 
   if (dd != prevDay)
   {
+    prevDay = dd;
     tft.setTextDatum(BC_DATUM);
     char buffer[50];
     if (NOT_US_DATE)
