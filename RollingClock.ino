@@ -11,7 +11,7 @@ You will have to modify the PREFERENCES section in RollingClock.ino to your WiFi
 #include <WiFiUdp.h> // To communicate with NTP server
 #include <Timezone.h>
 
-#define TOUCH_CS // This sketch does not use touch, but this is defined to quiet the warning about not defining touch_cs.
+#define TOUCH_CS 33 // This sketch does not use touch, but this is defined to quiet the warning about not defining touch_cs.
 
 /*-------- DEBUGGING ----------*/
 void Debug(String label, int val)
@@ -64,6 +64,10 @@ static const int ntpSyncIntervalInSeconds = 300; // How often to sync with time 
 #include <SPI.h>
 TFT_eSPI tft = TFT_eSPI();              // Invoke custom library
 TFT_eSprite sprite = TFT_eSprite(&tft); // Sprite class
+
+#include "filesystem.h"
+#include "paths.h"
+#include "sdcard.h"
 
 int clockFont = 1;
 int clockSize = 6;
@@ -362,6 +366,45 @@ void DrawDate(time_t utc)
   }
 }
 
+void SetupWiFiBySD()
+{
+    DynamicJsonDocument wifiConfig = xtouch_filesystem_readJson(SD, cyd_paths_config);
+    if (wifiConfig.isNull() || !wifiConfig.containsKey("ssid") || !wifiConfig.containsKey("pwd"))
+    {
+        tft.fillScreen(clockBackgroundColor);
+        tft.setTextFont(4);
+        tft.setTextSize(1);
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString("Please check SD", 320 / 2, 240 / 2 - 40);
+    }else{
+        String ssid = wifiConfig["ssid"];
+        String pass = wifiConfig["pwd"];
+        Serial.print("Connecting to ");
+        Serial.println();
+        Serial.print("pass: ");
+        Serial.println(pass);
+
+        tft.fillScreen(clockBackgroundColor);
+        tft.setTextFont(4);
+        tft.setTextSize(1);
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString("Connecting to", 320 / 2, 240 / 2 - 40);
+        tft.drawString(ssid, 320 / 2, 240 / 2);
+
+        WiFi.begin(ssid.c_str(), pass.c_str());
+
+        int tries = 5 * 2;
+        String dots = "";
+        while (WiFi.status() != WL_CONNECTED && tries-- > 0)
+        {
+          delay(500);
+          Serial.print(".");
+          dots = dots + ".";
+          tft.drawString(dots, 320 / 2, 240 / 2 + 20);
+        }
+    }
+}
+
 void SetupWiFi()
 {
   while (WiFi.status() != WL_CONNECTED)
@@ -423,7 +466,10 @@ void setup()
 {
   Serial.begin(115200);
   SetupCYD();
-  SetupWiFi();
+  //SetupWiFi();
+  while (!xtouch_sdcard_setup())
+    ;
+  SetupWiFiBySD();
   SetupNTP();
   SetupDigits();
 }
